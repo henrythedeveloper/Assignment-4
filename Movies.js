@@ -40,7 +40,8 @@ var MovieSchema = new Schema({
             },
             message: 'You must have at least 3 actors'
         }
-    }
+    },
+    imageUrl: { type: String }
 });
 
 // Return the model
