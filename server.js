@@ -386,6 +386,69 @@ router.route('/reviews')
         });
     });
 
+// Search Routes
+router.route('/search')
+    .post(authJwtController.isAuthenticated, function (req, res) {
+        if (!req.body.searchTerm) {
+            return res.status(400).json({ success: false, message: 'Please provide a search term.' });
+        }
+
+        const searchTerm = req.body.searchTerm;
+        const includeReviews = req.query.reviews === 'true';
+        
+        // Create a search query that looks for partial matches in movie title or actor names
+        const searchQuery = {
+            $or: [
+                { title: { $regex: searchTerm, $options: 'i' } },
+                { 'actors.actorName': { $regex: searchTerm, $options: 'i' } }
+            ]
+        };
+        
+        if (includeReviews) {
+            Movie.aggregate([
+                {
+                    $match: searchQuery
+                },
+                {
+                    $lookup: {
+                        from: 'reviews',
+                        localField: '_id',
+                        foreignField: 'movieId',
+                        as: 'reviews'
+                    }
+                },
+                {
+                    $addFields: {
+                        avgRating: { $avg: '$reviews.rating' }
+                    }
+                },
+                {
+                    $sort: { avgRating: -1 }
+                }
+            ]).exec(function(err, movies) {
+                if (err) {
+                    return res.status(500).send(err);
+                }
+                
+                movies.forEach(movie => {
+                    if (movie.avgRating === null || movie.avgRating === undefined) {
+                        movie.avgRating = 0;
+                    }
+                });
+                
+                res.json(movies);
+            });
+        } else {
+            Movie.find(searchQuery, function(err, movies) {
+                if (err) {
+                    return res.status(500).send(err);
+                }
+                res.json(movies);
+            });
+        }
+    });
+
+
 app.use('/', router);
 app.listen(process.env.PORT || 8080);
 
